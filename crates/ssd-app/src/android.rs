@@ -12,15 +12,16 @@ mod android_setup;
 
 use std::ffi::{OsString, c_char, c_int};
 
-/// The file of extra launch arguments, one line, split on spaces, read from the data folder (a test aid:
-/// `--mode enhanced`, `--install-hd-pack <zip>`, `--bench-app <replay>...`). Without it the game starts in Classic
-/// mode. `ENV:NAME=value` sets an environment variable. A `--bench-app` run (README, "Developer commands") has no
-/// standard output here: its report goes to `bench-report.txt` in the data folder, and replays named relatively are
-/// looked for there too.
+/// The file of extra launch arguments, one line, split on spaces, read from the data folder.
 const ARGS_FILE: &str = "android-args.txt";
 
-/// The folder of the game's files: the app's internal folder (private to the app, removed with it; a debug
-/// build can be reached with `adb shell run-as`).
+/// Translation files are downloaded from the translation author's RC1 commit during the cloud build.
+const ZH_TW_TEXT: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../translations/zh-tw/zh-tw.tsv"));
+const ZH_TW_UI: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../translations/zh-tw/ui-zh-tw.tsv"));
+const ZH_TW_FONT: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../translations/zh-tw/fonts/LXGWWenKaiTC-Regular.ttf"));
+const ZH_TW_FONT_LICENSE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../translations/zh-tw/fonts/OFL.txt"));
+
+/// The folder of the game's files: the app's internal folder (private to the app).
 fn data_dir() -> Option<PathBuf> {
     // SAFETY: SDL is initialised by the activity before it runs `SDL_main`; the string is static to SDL.
     let path = unsafe { sdl3::sys::system::SDL_GetAndroidInternalStoragePath() };
@@ -30,6 +31,17 @@ fn data_dir() -> Option<PathBuf> {
     // SAFETY: a NUL-terminated string that lives as long as SDL.
     let text = unsafe { std::ffi::CStr::from_ptr(path) }.to_string_lossy().into_owned();
     Some(PathBuf::from(text))
+}
+
+/// Installs the translation in the app-private data folder. The game already loads translations from this folder.
+fn install_zh_tw(dir: &Path) -> std::io::Result<()> {
+    let fonts = dir.join("fonts");
+    std::fs::create_dir_all(&fonts)?;
+    std::fs::write(dir.join("zh-tw.tsv"), ZH_TW_TEXT)?;
+    std::fs::write(dir.join("ui-zh-tw.tsv"), ZH_TW_UI)?;
+    std::fs::write(fonts.join("LXGWWenKaiTC-Regular.ttf"), ZH_TW_FONT)?;
+    std::fs::write(fonts.join("OFL.txt"), ZH_TW_FONT_LICENSE)?;
+    Ok(())
 }
 
 fn extra_args(dir: &Path) -> Vec<OsString> {
@@ -46,11 +58,23 @@ pub extern "C" fn SDL_main(_argc: c_int, _argv: *mut *mut c_char) -> c_int {
     );
     forward_stderr();
     std::panic::set_hook(Box::new(|info| log::error!("panic: {info}")));
-    let mut base = vec![OsString::from("ssd-recompiled")];
+    // Default to Remastered/Enhanced and Traditional Chinese on this dedicated build.
+    let mut base = vec![
+        OsString::from("ssd-recompiled"),
+        OsString::from("--mode"),
+        OsString::from("enhanced"),
+        OsString::from("--hd-scale"),
+        OsString::from("4"),
+        OsString::from("--lang"),
+        OsString::from("zh-tw"),
+    ];
     if let Some(dir) = data_dir() {
         log::info!("data folder {}", dir.display());
         // SAFETY: nothing else has started a thread that reads the environment yet.
         unsafe { std::env::set_var("SSD_DATA_DIR", &dir) };
+        if let Err(error) = install_zh_tw(&dir) {
+            log::error!("could not install the built-in Traditional Chinese translation: {error}");
+        }
         for arg in extra_args(&dir) {
             // `ENV:NAME=value` sets an environment variable (for example `ENV:WGPU_BACKEND=gl`).
             match arg.to_str().and_then(|a| a.strip_prefix("ENV:")).and_then(|a| a.split_once('=')) {
