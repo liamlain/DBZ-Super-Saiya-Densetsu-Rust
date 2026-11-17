@@ -41,4 +41,4 @@ cp -r "$sdl_java" android/app/src/main/java/org/libsdl/app
 
 # Gradle packages an APK incrementally over the last one and never gives back the room of a bigger old library.
 rm -rf android/app/build/outputs/apk
-(cd android && ./gradlew "$daemon" "$gradle_task")
+(cd android && bash ./gradlew "$daemon" "$gradle_task")
