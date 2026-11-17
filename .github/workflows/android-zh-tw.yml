@@ -24,6 +24,8 @@ jobs:
 
       - name: Install Android SDK and NDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 ndk;27.2.12479018'
 
       - name: Install native build tools
         run: |
@@ -54,15 +56,11 @@ jobs:
           test -s translations/zh-tw/fonts/LXGWWenKaiTC-Regular.ttf
           test -s translations/zh-tw/fonts/OFL.txt
 
-      - name: Build signed ARM64 debug APK
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ vars.ANDROID_NDK_VERSION }}
+      - name: Build ARM64 debug APK
         run: |
           set -euo pipefail
-          if [ ! -d "$ANDROID_NDK_HOME" ]; then
-            ANDROID_NDK_HOME="$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
-            export ANDROID_NDK_HOME
-          fi
+          export ANDROID_NDK_HOME="$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -n "$ANDROID_NDK_HOME"
           export CMAKE_ANDROID="$(command -v cmake)"
           android/build-apk.sh arm64-v8a
 
