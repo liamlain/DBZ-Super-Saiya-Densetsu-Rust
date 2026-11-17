@@ -62,7 +62,7 @@ jobs:
           export ANDROID_NDK_HOME="$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
           test -n "$ANDROID_NDK_HOME"
           export CMAKE_ANDROID="$(command -v cmake)"
-          android/build-apk.sh arm64-v8a
+          bash android/build-apk.sh arm64-v8a
 
       - name: Verify APK exists
         run: |
